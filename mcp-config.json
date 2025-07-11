@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "image-tools": {
+      "command": "node",
+      "args": ["/path/to/image-tools-mcp-server/src/index.js"],
+      "env": {}
+    }
+  }
+}
