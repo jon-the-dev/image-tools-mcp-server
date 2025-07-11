@@ -11,13 +11,26 @@
    magick -version
    ```
 
-2. **Install Node.js dependencies**
+2. **Install the MCP server**
    ```bash
+   # Option 1: Install globally (recommended)
+   npm install -g image-tools-mcp-server
+   
+   # Option 2: Run directly with npx (no installation)
+   npx image-tools-mcp-server
+   
+   # Option 3: Install from source
+   git clone https://github.com/jon-the-dev/image-tools-mcp-server.git
+   cd image-tools-mcp-server
    npm install
    ```
 
 3. **Test the server**
    ```bash
+   # If installed globally
+   image-tools-mcp-server
+   
+   # If installed from source
    npm start
    ```
 
@@ -28,6 +41,21 @@
    - If it doesn't exist, create it
 
 2. **Add the MCP server configuration**
+
+   **If installed globally (recommended):**
+   ```json
+   {
+     "mcpServers": {
+       "image-tools": {
+         "command": "image-tools-mcp-server",
+         "args": [],
+         "env": {}
+       }
+     }
+   }
+   ```
+
+   **If running from source:**
    ```json
    {
      "mcpServers": {

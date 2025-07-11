@@ -1,8 +1,11 @@
 {
   "name": "image-tools-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for image optimization, thumbnail generation, and format conversion using ImageMagick",
   "main": "src/index.js",
+  "bin": {
+    "image-tools-mcp-server": "src/index.js"
+  },
   "type": "module",
   "scripts": {
     "start": "node src/index.js",

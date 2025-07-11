@@ -2,6 +2,29 @@
 
 A Model Context Protocol (MCP) server that provides powerful image processing capabilities using ImageMagick. This server enables AI assistants to perform image optimization, thumbnail generation, format conversion, and batch processing operations.
 
+## Quick Install
+
+```bash
+# Install globally
+npm install -g image-tools-mcp-server
+
+# Or run directly without installing
+npx image-tools-mcp-server
+```
+
+Then add to your Q CLI MCP configuration:
+```json
+{
+  "mcpServers": {
+    "image-tools": {
+      "command": "image-tools-mcp-server",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
 ## Features
 
 - **Image Optimization**: Reduce file sizes while maintaining quality
@@ -45,9 +68,21 @@ Requires Node.js 18.0.0 or higher.
 
 ## Installation
 
+### Option 1: Install via npm (Recommended)
+
+```bash
+# Install globally
+npm install -g image-tools-mcp-server
+
+# Or run directly with npx (no installation required)
+npx image-tools-mcp-server
+```
+
+### Option 2: Install from source
+
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/jon-the-dev/image-tools-mcp-server.git
 cd image-tools-mcp-server
 ```
 
@@ -67,6 +102,20 @@ npm start
 
 To use this MCP server with Amazon Q CLI, add it to your MCP configuration:
 
+#### If installed globally:
+```json
+{
+  "mcpServers": {
+    "image-tools": {
+      "command": "image-tools-mcp-server",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
+
+#### If running from source:
 ```json
 {
   "mcpServers": {
@@ -212,21 +261,24 @@ Optimize multiple images in a directory.
 
 ### Basic Image Optimization
 ```bash
-# Through Q CLI
+# After installing and configuring with Q CLI
 q chat "Optimize the image at /Users/jon/photos/vacation.jpg and save it to /Users/jon/photos/vacation-optimized.jpg with 80% quality"
 ```
 
 ### Creating Thumbnails
 ```bash
-# Through Q CLI
 q chat "Create a 300x200 thumbnail from /Users/jon/photos/landscape.jpg and save it to /Users/jon/photos/landscape-thumb.jpg"
 ```
 
 ### Batch Processing
 ```bash
-# Through Q CLI
 q chat "Optimize all images in /Users/jon/photos/raw/ and save them to /Users/jon/photos/optimized/ with 85% quality"
 ```
+
+### Getting Started
+1. Install: `npm install -g image-tools-mcp-server`
+2. Configure with Q CLI (see configuration section above)
+3. Start using: `q chat "Get image info for any image file"`
 
 ## Development
 
