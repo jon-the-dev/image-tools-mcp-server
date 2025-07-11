@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "image-tools": {
-      "command": "image-tools-mcp-server",
-      "args": [],
+      "command": "npx",
+      "args": ["image-tools-mcp-server"],
       "env": {}
     }
   }

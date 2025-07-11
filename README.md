@@ -8,11 +8,24 @@ A Model Context Protocol (MCP) server that provides powerful image processing ca
 # Install globally
 npm install -g image-tools-mcp-server
 
-# Or run directly without installing
+# Or run directly without installing (recommended)
 npx image-tools-mcp-server
 ```
 
 Then add to your Q CLI MCP configuration:
+```json
+{
+  "mcpServers": {
+    "image-tools": {
+      "command": "npx",
+      "args": ["image-tools-mcp-server"],
+      "env": {}
+    }
+  }
+}
+```
+
+Or if installed globally:
 ```json
 {
   "mcpServers": {
@@ -24,6 +37,8 @@ Then add to your Q CLI MCP configuration:
   }
 }
 ```
+
+**Note:** The MCP server runs via stdio - Q CLI launches the server process and communicates with it through standard input/output.
 
 ## Features
 
@@ -101,6 +116,19 @@ npm start
 ### Adding to Q CLI
 
 To use this MCP server with Amazon Q CLI, add it to your MCP configuration:
+
+#### If using npx (recommended - no installation required):
+```json
+{
+  "mcpServers": {
+    "image-tools": {
+      "command": "npx",
+      "args": ["image-tools-mcp-server"],
+      "env": {}
+    }
+  }
+}
+```
 
 #### If installed globally:
 ```json

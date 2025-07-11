@@ -42,7 +42,20 @@
 
 2. **Add the MCP server configuration**
 
-   **If installed globally (recommended):**
+   **If using npx (recommended - no installation required):**
+   ```json
+   {
+     "mcpServers": {
+       "image-tools": {
+         "command": "npx",
+         "args": ["image-tools-mcp-server"],
+         "env": {}
+       }
+     }
+   }
+   ```
+
+   **If installed globally:**
    ```json
    {
      "mcpServers": {
