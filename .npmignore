@@ -1,0 +1,22 @@
+# Exclude pre-release security reports
+PRE_RELEASE_*.md
+
+# Development files
+.git/
+.gitignore
+node_modules/
+
+# Test images and output
+test-images/
+output/
+temp-images/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

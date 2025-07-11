@@ -12,10 +12,16 @@
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "imagemagick",
     "image-processing",
     "thumbnails",
-    "optimization"
+    "optimization",
+    "image-conversion",
+    "batch-processing",
+    "ai-tools",
+    "claude",
+    "amazon-q"
   ],
   "author": "Jon <jon@zer0day.net>",
   "license": "MIT",
@@ -32,10 +38,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/username/image-tools-mcp-server.git"
+    "url": "git+https://github.com/jon-the-dev/image-tools-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/username/image-tools-mcp-server/issues"
+    "url": "https://github.com/jon-the-dev/image-tools-mcp-server/issues"
   },
-  "homepage": "https://github.com/username/image-tools-mcp-server#readme"
+  "homepage": "https://github.com/jon-the-dev/image-tools-mcp-server#readme"
 }
