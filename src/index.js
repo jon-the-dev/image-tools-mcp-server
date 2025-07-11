@@ -66,6 +66,20 @@ class ImageToolsServer {
             },
           },
           {
+            name: 'list_images',
+            description: 'List all image files in the current directory to help with file discovery',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                directory: {
+                  type: 'string',
+                  description: 'Directory to list images from (default: current directory)',
+                  default: '.'
+                }
+              }
+            },
+          },
+          {
             name: 'create_thumbnail',
             description: 'Create a thumbnail from an image with specified dimensions',
             inputSchema: {
@@ -229,6 +243,8 @@ class ImageToolsServer {
         switch (name) {
           case 'optimize_image':
             return await this.handleOptimizeImage(args);
+          case 'list_images':
+            return await this.handleListImages(args);
           case 'create_thumbnail':
             return await this.handleCreateThumbnail(args);
           case 'create_icon':
@@ -264,6 +280,58 @@ class ImageToolsServer {
         },
       ],
     };
+  }
+
+  async handleListImages(args) {
+    const directory = args.directory || '.';
+    const { readdirSync, statSync } = await import('fs');
+    const { join } = await import('path');
+    
+    try {
+      const files = readdirSync(directory);
+      const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|tiff|webp|ico)$/i;
+      const imageFiles = files
+        .filter(file => imageExtensions.test(file))
+        .map(file => {
+          try {
+            const filePath = join(directory, file);
+            const stats = statSync(filePath);
+            return {
+              name: file,
+              size: this.imageProcessor.formatFileSize(stats.size),
+              path: filePath
+            };
+          } catch (error) {
+            return {
+              name: file,
+              size: 'Unknown',
+              path: join(directory, file),
+              error: 'Could not read file stats'
+            };
+          }
+        });
+      
+      const result = {
+        success: true,
+        directory: directory,
+        totalImages: imageFiles.length,
+        images: imageFiles,
+        message: imageFiles.length > 0 
+          ? `Found ${imageFiles.length} image file(s) in ${directory}`
+          : `No image files found in ${directory}. Supported formats: jpg, jpeg, png, gif, bmp, tiff, webp, ico`
+      };
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(`Failed to list images in directory ${directory}: ${error.message}`);
+    }
   }
 
   async handleCreateThumbnail(args) {

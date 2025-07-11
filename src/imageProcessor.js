@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
-import { join, dirname, extname, basename } from 'path';
+import { join, dirname, extname, basename, resolve } from 'path';
 
 const execAsync = promisify(exec);
 
@@ -37,7 +37,20 @@ export class ImageProcessor {
    */
   validateInputFile(filePath) {
     if (!existsSync(filePath)) {
-      throw new Error(`Input file does not exist: ${filePath}`);
+      // Provide more helpful error information
+      const absolutePath = resolve(filePath);
+      const currentDir = process.cwd();
+      let dirContents = 'Unable to read directory';
+      try {
+        const allFiles = readdirSync('.');
+        const imageFiles = allFiles.filter(f => /\.(jpg|jpeg|png|gif|bmp|tiff|webp|ico)$/i.test(f));
+        dirContents = imageFiles.length > 0 
+          ? `Image files found: ${imageFiles.join(', ')}`
+          : `No image files found. All files: ${allFiles.slice(0, 10).join(', ')}${allFiles.length > 10 ? '...' : ''}`;
+      } catch (e) {
+        // ignore
+      }
+      throw new Error(`Input file does not exist: ${filePath}\n\nTroubleshooting:\n- Absolute path: ${absolutePath}\n- Current directory: ${currentDir}\n- ${dirContents}\n\nTip: Make sure the image file exists in the directory where you're running the Q CLI command.`);
     }
   }
 
