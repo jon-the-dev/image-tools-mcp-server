@@ -15,7 +15,7 @@ class ImageToolsServer {
     this.server = new Server(
       {
         name: 'image-tools-mcp-server',
-        version: '1.0.0',
+        version: '1.2.0',
       },
       {
         capabilities: {
