@@ -1,13 +1,34 @@
 version: 2
-updates:
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+multi-ecosystem-groups:
+  monthly-dependencies:
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: monthly
+      day: monday
+      time: "09:00"
+      timezone: America/Los_Angeles
+    labels:
+      - dependencies
+
+updates:
+  - package-ecosystem: pip
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: monthly-dependencies
+    groups:
+      pip-security:
+        applies-to: security-updates
+        patterns: ["*"]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    patterns: ["*"]
+    multi-ecosystem-group: monthly-dependencies
+    groups:
+      github_actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
