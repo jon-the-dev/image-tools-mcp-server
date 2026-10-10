@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -10,7 +12,20 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ImageProcessor, SUPPORTED_FORMATS } from './imageProcessor.js';
 
-class ImageToolsServer {
+function toolErrorResult(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({ success: false, error: message }, null, 2),
+      },
+    ],
+    isError: true,
+  };
+}
+
+export class ImageToolsServer {
   constructor() {
     this.server = new Server(
       {
@@ -287,10 +302,10 @@ class ImageToolsServer {
             );
         }
       } catch (error) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Error executing ${name}: ${error.message}`
-        );
+        if (error instanceof McpError) {
+          throw error;
+        }
+        return toolErrorResult(error);
       }
     });
   }
@@ -428,5 +443,14 @@ class ImageToolsServer {
   }
 }
 
-const server = new ImageToolsServer();
-server.run().catch(console.error);
+function isEntryPoint() {
+  if (!process.argv[1]) {
+    return false;
+  }
+  return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+}
+
+if (isEntryPoint()) {
+  const server = new ImageToolsServer();
+  server.run().catch(console.error);
+}
