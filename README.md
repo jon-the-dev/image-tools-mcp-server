@@ -262,9 +262,11 @@ Convert an image from one format to another.
 **Parameters:**
 - `inputPath` (required): Path to the input image file
 - `outputPath` (required): Path for the converted output image
-- `format` (required): Target format (jpg, png, webp, gif, bmp, tiff)
+- `format` (required): Target format (jpg, jpeg, png, webp, gif, bmp, tiff, ico)
 - `quality` (optional): Quality level for lossy formats (1-100, default: 90)
 - `overwrite` (optional): Replace the output file if it already exists (default: false). Never replaces the input.
+
+`outputPath` must end in an extension that matches `format` (`.jpg`/`.jpeg` and `.tif`/`.tiff` are interchangeable). If `outputPath` has no extension, `.<format>` is appended. A mismatched extension, such as `out.png` with `format: "webp"`, is rejected with `outputPath extension .png does not match format webp`. A missing or non-string `format` is rejected with a clear error. The response's `format` is what ImageMagick actually wrote.
 
 **Example:**
 ```javascript

@@ -129,9 +129,51 @@ function formatCommand(args) {
   return ['magick', ...args].join(' ');
 }
 
+export const SUPPORTED_FORMATS = Object.keys(EXTENSION_CODERS);
+export const LOSSY_FORMATS = ['jpg', 'jpeg', 'webp'];
+
+function normalizeFormat(format) {
+  if (typeof format !== 'string' || format.trim() === '') {
+    throw new Error(
+      `format is required and must be a string. Supported formats: ${SUPPORTED_FORMATS.join(', ')}`,
+    );
+  }
+  const normalized = format.trim().toLowerCase();
+  if (!SUPPORTED_FORMATS.includes(normalized)) {
+    throw new Error(
+      `Unsupported format: ${format}. Supported formats: ${SUPPORTED_FORMATS.join(', ')}`,
+    );
+  }
+  return normalized;
+}
+
+/**
+ * Append `.${format}` to an extensionless outputPath, or require that its extension
+ * maps to the same coder as format (so jpg/jpeg and tif/tiff are interchangeable).
+ */
+function withFormatExtension(outputPath, format) {
+  if (typeof outputPath !== 'string' || outputPath === '') {
+    throw new Error('outputPath must be a non-empty string.');
+  }
+  const ext = extname(outputPath);
+  if (ext === '') {
+    return `${outputPath}.${format}`;
+  }
+  const extCoder = EXTENSION_CODERS[ext.slice(1).toLowerCase()];
+  if (extCoder !== EXTENSION_CODERS[format]) {
+    throw new Error(`outputPath extension ${ext} does not match format ${format}`);
+  }
+  return outputPath;
+}
+
+async function identifyFormat(validatedPath) {
+  const { stdout } = await runMagick(['identify', '-format', '%m\\n', inputArg(validatedPath)]);
+  return stdout.split('\n')[0].trim().toLowerCase();
+}
+
 export class ImageProcessor {
   constructor() {
-    this.supportedFormats = Object.keys(EXTENSION_CODERS);
+    this.supportedFormats = SUPPORTED_FORMATS;
   }
 
   /**
@@ -408,37 +450,36 @@ export class ImageProcessor {
   /**
    * Convert image format
    */
-  async convertFormat({ inputPath, outputPath, format, quality = 90, overwrite = false }) {
+  async convertFormat({
+    inputPath, outputPath: requestedPath, format, quality = 90, overwrite = false,
+  }) {
+    const targetFormat = normalizeFormat(format);
+    const outputPath = withFormatExtension(requestedPath, targetFormat);
     await this.checkImageMagick();
     const inputReal = this.resolveInputPath(inputPath);
     const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
     this.ensureDirectoryExists(outputReal);
 
-    if (!this.supportedFormats.includes(format.toLowerCase())) {
-      throw new Error(`Unsupported format: ${format}. Supported formats: ${this.supportedFormats.join(', ')}`);
-    }
-
     const originalSize = this.getFileSize(inputReal);
-    
+    const isLossy = LOSSY_FORMATS.includes(targetFormat);
+
     const args = [inputArg(inputReal)];
-    
-    // Add quality for lossy formats
-    if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
+    if (isLossy) {
       args.push('-quality', String(quality));
     }
-    
     args.push(outputArg(outputReal));
 
     try {
       await runMagick(args);
       const convertedSize = this.getFileSize(outputReal);
+      const writtenFormat = await identifyFormat(outputReal);
 
       return {
         success: true,
         inputPath,
         outputPath,
-        format,
-        quality: ['jpg', 'jpeg', 'webp'].includes(format.toLowerCase()) ? quality : 'N/A',
+        format: writtenFormat,
+        quality: isLossy ? quality : 'N/A',
         originalSize: this.formatFileSize(originalSize),
         convertedSize: this.formatFileSize(convertedSize),
         command: formatCommand(args),

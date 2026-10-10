@@ -8,7 +8,7 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { ImageProcessor } from './imageProcessor.js';
+import { ImageProcessor, SUPPORTED_FORMATS } from './imageProcessor.js';
 
 class ImageToolsServer {
   constructor() {
@@ -178,8 +178,8 @@ class ImageToolsServer {
                 },
                 format: {
                   type: 'string',
-                  description: 'Target format (jpg, png, webp, gif, bmp, tiff)',
-                  enum: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff'],
+                  description: `Target format (${SUPPORTED_FORMATS.join(', ')})`,
+                  enum: SUPPORTED_FORMATS,
                 },
                 quality: {
                   type: 'number',
