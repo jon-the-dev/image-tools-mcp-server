@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -11,6 +11,8 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ImageProcessor, SUPPORTED_FORMATS } from './imageProcessor.js';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 function toolErrorResult(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -30,7 +32,7 @@ export class ImageToolsServer {
     this.server = new Server(
       {
         name: 'image-tools-mcp-server',
-        version: '1.2.0',
+        version,
       },
       {
         capabilities: {
