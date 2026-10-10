@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ImageProcessor } from '../src/imageProcessor.js';
@@ -69,7 +69,8 @@ describe('ImageProcessor happy paths', { skip: !hasMagick }, () => {
     assert.ok(existsSync(output));
     assert.equal(
       result.command,
-      `magick ${input} -resize 32x> -quality 85 -strip -interlace Plane ${output}`,
+      `magick ${realpathSync(input)} -resize 32x> -quality 85 -strip -interlace Plane ` +
+        realpathSync(output),
     );
     const { imageInfo } = await processor.getImageInfo({ imagePath: output });
     assert.equal(imageInfo.width, 32);
@@ -132,7 +133,10 @@ describe('ImageProcessor happy paths', { skip: !hasMagick }, () => {
 
     assert.equal(result.success, true);
     assert.equal(result.quality, 90);
-    assert.equal(result.command, `magick ${input} -quality 90 ${output}`);
+    assert.equal(
+      result.command,
+      `magick ${realpathSync(input)} -quality 90 ${realpathSync(output)}`,
+    );
     const { imageInfo } = await processor.getImageInfo({ imagePath: output });
     assert.equal(imageInfo.format, 'JPEG');
   });

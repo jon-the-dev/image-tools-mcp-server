@@ -11,8 +11,14 @@ function runMagick(args) {
   return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER });
 }
 
-function magickPath(filePath) {
-  return resolve(filePath);
+/**
+ * Build the magick argument for a path that resolveInputPath/resolveOutputPath validated.
+ *
+ * Callers pass the validated real path, never the raw tool argument, so the file magick
+ * opens is the one confinement checked. Absolute paths cannot be parsed as options.
+ */
+function magickPath(validatedPath) {
+  return resolve(validatedPath);
 }
 
 function formatCommand(args) {
@@ -150,12 +156,12 @@ export class ImageProcessor {
   }) {
     await this.checkImageMagick();
     const inputReal = this.resolveInputPath(inputPath);
-    this.resolveOutputPath(outputPath, { inputReal, overwrite });
-    this.ensureDirectoryExists(outputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
-    const originalSize = this.getFileSize(inputPath);
+    const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     // Add resize if dimensions specified
     if (maxWidth || maxHeight) {
@@ -173,11 +179,11 @@ export class ImageProcessor {
     // Add optimization flags
     args.push('-strip', '-interlace', 'Plane');
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const optimizedSize = this.getFileSize(outputPath);
+      const optimizedSize = this.getFileSize(outputReal);
       const compressionRatio = ((originalSize - optimizedSize) / originalSize * 100).toFixed(2);
 
       return {
@@ -207,10 +213,10 @@ export class ImageProcessor {
   }) {
     await this.checkImageMagick();
     const inputReal = this.resolveInputPath(inputPath);
-    this.resolveOutputPath(outputPath, { inputReal, overwrite });
-    this.ensureDirectoryExists(outputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     if (cropToFit) {
       // Crop to exact dimensions
@@ -227,11 +233,11 @@ export class ImageProcessor {
       args.push('-resize', `${width}x${height}!`);
     }
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const thumbnailSize = this.getFileSize(outputPath);
+      const thumbnailSize = this.getFileSize(outputReal);
 
       return {
         success: true,
@@ -256,29 +262,28 @@ export class ImageProcessor {
   }) {
     await this.checkImageMagick();
     const inputReal = this.resolveInputPath(inputPath);
-    resolveAllowedPath(outputDir, 'outputDir');
+    const outputDirReal = resolveAllowedPath(outputDir, 'outputDir');
     const baseName = basename(inputPath, extname(inputPath));
-    for (const size of sizes) {
+    const outputReals = sizes.map((size) => {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
-      this.resolveOutputPath(outputPath, { inputReal, overwrite, label: 'icon outputPath' });
-    }
+      return this.resolveOutputPath(outputPath, { inputReal, overwrite, label: 'icon outputPath' });
+    });
 
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
+    if (!existsSync(outputDirReal)) {
+      mkdirSync(outputDirReal, { recursive: true });
     }
 
     const results = [];
 
-    for (const size of sizes) {
+    for (const [index, size] of sizes.entries()) {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
-      
       const args = [
-        magickPath(inputPath), '-resize', `${size}x${size}`, magickPath(outputPath),
+        magickPath(inputReal), '-resize', `${size}x${size}`, magickPath(outputReals[index]),
       ];
 
       try {
         await runMagick(args);
-        const fileSize = this.getFileSize(outputPath);
+        const fileSize = this.getFileSize(outputReals[index]);
         
         results.push({
           size: `${size}x${size}`,
@@ -309,27 +314,27 @@ export class ImageProcessor {
   async convertFormat({ inputPath, outputPath, format, quality = 90, overwrite = false }) {
     await this.checkImageMagick();
     const inputReal = this.resolveInputPath(inputPath);
-    this.resolveOutputPath(outputPath, { inputReal, overwrite });
-    this.ensureDirectoryExists(outputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
     if (!this.supportedFormats.includes(format.toLowerCase())) {
       throw new Error(`Unsupported format: ${format}. Supported formats: ${this.supportedFormats.join(', ')}`);
     }
 
-    const originalSize = this.getFileSize(inputPath);
+    const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     // Add quality for lossy formats
     if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
       args.push('-quality', String(quality));
     }
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const convertedSize = this.getFileSize(outputPath);
+      const convertedSize = this.getFileSize(outputReal);
 
       return {
         success: true,
@@ -351,11 +356,11 @@ export class ImageProcessor {
    */
   async getImageInfo({ imagePath }) {
     await this.checkImageMagick();
-    this.resolveInputPath(imagePath, 'imagePath');
+    const imageReal = this.resolveInputPath(imagePath, 'imagePath');
 
     try {
-      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imagePath)]);
-      const fileSize = this.getFileSize(imagePath);
+      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imageReal)]);
+      const fileSize = this.getFileSize(imageReal);
       
       // Parse basic info from identify output
       const lines = stdout.split('\n');

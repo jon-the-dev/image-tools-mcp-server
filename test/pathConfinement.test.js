@@ -237,6 +237,21 @@ describe('paths inside the allowed directories still work', { skip: !hasMagick }
     assert.ok(existsSync(join(dir, 'sub', 'out.png')));
   });
 
+  test('magick receives the validated real path, not the requested one', async () => {
+    const dir = freshDir(root, 'validated');
+    const real = freshDir(dir, 'real');
+    symlinkSync(real, join(dir, 'link'));
+    makeImage(join(real, 'in.png'));
+
+    const result = await processor.optimizeImage({
+      inputPath: join(dir, 'link', 'in.png'), outputPath: join(dir, 'link', 'out.png'),
+    });
+
+    const realDir = realpathSync(real);
+    assert.equal(result.command.split(' ')[1], join(realDir, 'in.png'));
+    assert.equal(result.command.split(' ').at(-1), join(realDir, 'out.png'));
+  });
+
   test('any entry in a multi-root list is allowed', async () => {
     const extra = mkdtempSync(join(tmpdir(), 'image-tools-extra-'));
     const input = join(freshDir(root, 'multi'), 'in.png');
