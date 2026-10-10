@@ -24,9 +24,12 @@ describe('ImageToolsServer over MCP', () => {
   let client;
   let server;
   let root;
+  let outside;
 
   before(async () => {
     root = mkdtempSync(join(tmpdir(), 'image-tools-server-'));
+    outside = mkdtempSync(join(tmpdir(), 'image-tools-server-outside-'));
+    process.env.IMAGE_TOOLS_ALLOWED_DIRS = root;
     server = new ImageToolsServer();
     client = new Client({ name: 'test-client', version: '0.0.0' });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -39,7 +42,14 @@ describe('ImageToolsServer over MCP', () => {
   after(async () => {
     await client.close();
     rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
   });
+
+  async function callToolBody(name, args) {
+    const result = await client.callTool({ name, arguments: args });
+    assert.equal(result.isError, true);
+    return JSON.parse(result.content[0].text);
+  }
 
   test('tools/list returns all seven tools', async () => {
     const { tools } = await client.listTools();
@@ -82,7 +92,24 @@ describe('ImageToolsServer over MCP', () => {
     assert.ok(!body.error.includes('    at '), 'error must not include a stack trace');
   });
 
-  test('successful call has no isError', { skip: !hasMagick && 'magick not installed' }, async () => {
+  test('path outside IMAGE_TOOLS_ALLOWED_DIRS is an isError result', async () => {
+    const imagePath = join(outside, 'secret.png');
+    const body = await callToolBody('get_image_info', { imagePath });
+    assert.equal(body.success, false);
+    assert.match(body.error, /^imagePath .*secret\.png.* is outside the allowed directories/);
+    assert.match(body.error, /Set IMAGE_TOOLS_ALLOWED_DIRS to permit it\./);
+  });
+
+  test('convert_format validation failures are isError results', async () => {
+    const body = await callToolBody('convert_format', {
+      inputPath: join(root, 'in.png'), outputPath: join(root, 'out.png'), format: 'webp',
+    });
+    assert.equal(body.error, 'outputPath extension .png does not match format webp');
+  });
+
+  const skipNoMagick = { skip: !hasMagick && 'magick not installed' };
+
+  test('successful call has no isError', skipNoMagick, async () => {
     const imagePath = join(root, 'red.png');
     execFileSync('magick', ['-size', '8x8', 'xc:red', imagePath]);
     const result = await client.callTool({
