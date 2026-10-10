@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policymap [
+  <!ELEMENT policymap (policy)*>
+  <!ATTLIST policymap xmlns CDATA #FIXED "">
+  <!ELEMENT policy EMPTY>
+  <!ATTLIST policy xmlns CDATA #FIXED "">
+  <!ATTLIST policy domain NMTOKEN #REQUIRED>
+  <!ATTLIST policy name NMTOKEN #IMPLIED>
+  <!ATTLIST policy pattern CDATA #IMPLIED>
+  <!ATTLIST policy rights NMTOKENS #IMPLIED>
+  <!ATTLIST policy stealth NMTOKEN #IMPLIED>
+  <!ATTLIST policy value CDATA #IMPLIED>
+]>
+<!--
+  Loaded by image-tools-mcp-server through MAGICK_CONFIGURE_PATH (see src/imageProcessor.js).
+  Denies coders that can read local files, fetch URLs or run Ghostscript, and the @file
+  indirection. The server only decodes and encodes PNG, JPEG, GIF, WEBP, TIFF, BMP and ICO.
+-->
+<policymap>
+  <policy domain="delegate" rights="none" pattern="*" />
+  <policy domain="coder" rights="none" pattern="{MVG,MSL,SVG,MSVG,RSVG,TEXT,TXT,LABEL,CAPTION}" />
+  <policy domain="coder" rights="none" pattern="{URL,HTTP,HTTPS,FTP,EPHEMERAL}" />
+  <policy domain="coder" rights="none" pattern="{PS,PS2,PS3,EPS,EPI,EPSF,EPSI,PDF,PDFA,XPS}" />
+  <policy domain="path" rights="none" pattern="@*" />
+</policymap>

@@ -69,8 +69,8 @@ describe('ImageProcessor happy paths', { skip: !hasMagick }, () => {
     assert.ok(existsSync(output));
     assert.equal(
       result.command,
-      `magick ${realpathSync(input)} -resize 32x> -quality 85 -strip -interlace Plane ` +
-        realpathSync(output),
+      `magick PNG:${realpathSync(input)} -resize 32x> -quality 85 -strip -interlace Plane ` +
+        `PNG:${realpathSync(output)}`,
     );
     const { imageInfo } = await processor.getImageInfo({ imagePath: output });
     assert.equal(imageInfo.width, 32);
@@ -135,7 +135,7 @@ describe('ImageProcessor happy paths', { skip: !hasMagick }, () => {
     assert.equal(result.quality, 90);
     assert.equal(
       result.command,
-      `magick ${realpathSync(input)} -quality 90 ${realpathSync(output)}`,
+      `magick PNG:${realpathSync(input)} -quality 90 JPEG:${realpathSync(output)}`,
     );
     const { imageInfo } = await processor.getImageInfo({ imagePath: output });
     assert.equal(imageInfo.format, 'JPEG');
