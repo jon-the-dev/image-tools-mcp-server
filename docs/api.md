@@ -230,7 +230,8 @@ Optimize multiple images in a directory.
 
 ## Error Handling
 
-All tools return consistent error responses:
+When a tool fails, the `tools/call` request still succeeds at the protocol level. The result
+has `isError: true` and a single text content item whose body is this JSON:
 
 ```json
 {
@@ -239,7 +240,26 @@ All tools return consistent error responses:
 }
 ```
 
-Common error scenarios:
+The full result looks like:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"success\": false,\n  \"error\": \"Input file does not exist: ...\"\n}"
+    }
+  ],
+  "isError": true
+}
+```
+
+`error` is the failure message only; stack traces are never included.
+
+Calling a tool name the server doesn't know is a protocol error, not a tool result: the request
+fails with JSON-RPC error code `-32601` (`MethodNotFound`) and the message `Unknown tool: <name>`.
+
+Common tool failure scenarios:
 - **File not found**: Input file doesn't exist
 - **Path not allowed**: A path resolves outside `IMAGE_TOOLS_ALLOWED_DIRS`
 - **Output exists**: The output file exists and `overwrite` is not `true`, or the output is the input
