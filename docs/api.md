@@ -14,7 +14,7 @@ Write rules for `optimize_image`, `create_thumbnail`, `create_icon`, `convert_fo
 - `overwrite` defaults to `false`. An existing output file makes the call fail unless it is `true`.
 - The output may never be the input file, and `batch_optimize` rejects an `outputDir` that is the
   same directory as `inputDir`. `overwrite` does not lift either rule.
-- Output files must end in a supported image extension: jpg, jpeg, png, webp, gif, bmp, tiff, ico.
+- Output files must end in a supported image extension: jpg, jpeg, png, webp, gif, bmp, tif, tiff, ico.
 
 ## Tool Reference
 

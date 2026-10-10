@@ -188,7 +188,7 @@ default either useless or far too broad. Set the variable explicitly.
 `overwrite` (default `false`). Without it, an existing output file is left alone and the call
 fails. Even with it, the output can't be the input file, and `batch_optimize` can't write into
 its own `inputDir`. Output files must use a supported image extension (jpg, jpeg, png, webp, gif,
-bmp, tiff, ico).
+bmp, tif, tiff, ico).
 
 ### Quality Settings
 - **High Quality (90-100)**: Minimal compression, larger files
