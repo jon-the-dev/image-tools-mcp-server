@@ -248,8 +248,8 @@ describe('paths inside the allowed directories still work', { skip: !hasMagick }
     });
 
     const realDir = realpathSync(real);
-    assert.equal(result.command.split(' ')[1], join(realDir, 'in.png'));
-    assert.equal(result.command.split(' ').at(-1), join(realDir, 'out.png'));
+    assert.equal(result.command.split(' ')[1], `PNG:${join(realDir, 'in.png')}`);
+    assert.equal(result.command.split(' ').at(-1), `PNG:${join(realDir, 'out.png')}`);
   });
 
   test('any entry in a multi-root list is allowed', async () => {

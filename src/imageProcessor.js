@@ -1,24 +1,128 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
-import { join, dirname, extname, basename, resolve } from 'path';
+import {
+  closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, statSync,
+} from 'fs';
+import { join, dirname, extname, basename, resolve, delimiter } from 'path';
+import { fileURLToPath } from 'url';
 import { isSameFile, resolveAllowedPath } from './pathGuard.js';
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 10 * 1024 * 1024;
+const POLICY_DIR = fileURLToPath(new URL('../config/', import.meta.url));
+
+const ALLOWED_CODERS = ['PNG', 'JPEG', 'GIF', 'WEBP', 'TIFF', 'BMP', 'ICO'];
+
+const MAGIC_SIGNATURES = [
+  { coder: 'PNG', parts: [[0, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]] },
+  { coder: 'JPEG', parts: [[0, Buffer.from([0xff, 0xd8, 0xff])]] },
+  { coder: 'GIF', parts: [[0, Buffer.from('GIF8')]] },
+  { coder: 'WEBP', parts: [[0, Buffer.from('RIFF')], [8, Buffer.from('WEBP')]] },
+  { coder: 'TIFF', parts: [[0, Buffer.from([0x49, 0x49, 0x2a, 0x00])]] },
+  { coder: 'TIFF', parts: [[0, Buffer.from([0x4d, 0x4d, 0x00, 0x2a])]] },
+  { coder: 'BMP', parts: [[0, Buffer.from('BM')]] },
+  { coder: 'ICO', parts: [[0, Buffer.from([0x00, 0x00, 0x01, 0x00])]] },
+];
+
+/**
+ * Writable file extensions and the coder each maps to. The output extension allowlist
+ * (supportedFormats) and the output coder prefix both derive from this map.
+ */
+const EXTENSION_CODERS = {
+  png: 'PNG',
+  jpg: 'JPEG',
+  jpeg: 'JPEG',
+  gif: 'GIF',
+  webp: 'WEBP',
+  tif: 'TIFF',
+  tiff: 'TIFF',
+  bmp: 'BMP',
+  ico: 'ICO',
+};
+
+function magickEnv() {
+  const existing = process.env.MAGICK_CONFIGURE_PATH;
+  const configurePath = existing ? `${POLICY_DIR}${delimiter}${existing}` : POLICY_DIR;
+  return { ...process.env, MAGICK_CONFIGURE_PATH: configurePath };
+}
 
 function runMagick(args) {
-  return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER });
+  return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER, env: magickEnv() });
+}
+
+function readHeader(filePath, length = 16) {
+  const fd = openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    const bytesRead = readSync(fd, buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function matchesSignature(header, { parts }) {
+  return parts.every(([offset, bytes]) =>
+    header.subarray(offset, offset + bytes.length).equals(bytes));
 }
 
 /**
- * Build the magick argument for a path that resolveInputPath/resolveOutputPath validated.
+ * Detect the raster coder for an input file from its magic number.
  *
- * Callers pass the validated real path, never the raw tool argument, so the file magick
- * opens is the one confinement checked. Absolute paths cannot be parsed as options.
+ * Args:
+ *   filePath: Path of the input image.
+ *
+ * Returns:
+ *   The ImageMagick coder name (one of ALLOWED_CODERS).
+ *
+ * Throws:
+ *   Error if the content does not match an allowed raster format.
  */
-function magickPath(validatedPath) {
-  return resolve(validatedPath);
+function detectInputCoder(filePath) {
+  const header = readHeader(filePath);
+  const signature = MAGIC_SIGNATURES.find(sig => matchesSignature(header, sig));
+  if (!signature) {
+    throw new Error(
+      `Unsupported or unsafe image type: ${filePath}. ` +
+      `Allowed formats: ${ALLOWED_CODERS.join(', ')}.`,
+    );
+  }
+  return signature.coder;
+}
+
+/**
+ * Map an output path's extension to an allowed raster coder.
+ *
+ * This is the only output-extension check: resolveOutputPath runs it before anything is
+ * written, and outputArg runs it again when building the magick argument.
+ *
+ * Throws:
+ *   Error if the extension is missing or not on the allowlist.
+ */
+function outputCoder(filePath, label = 'outputPath') {
+  const ext = extname(filePath).toLowerCase().substring(1);
+  const coder = Object.hasOwn(EXTENSION_CODERS, ext) ? EXTENSION_CODERS[ext] : undefined;
+  if (!coder) {
+    throw new Error(
+      `Unsupported or unsafe output type: ${label} ${filePath} has unsupported extension ` +
+      `"${ext}". Use one of: ${Object.keys(EXTENSION_CODERS).join(', ')}.`,
+    );
+  }
+  return coder;
+}
+
+/*
+ * Every path reaches magick through inputArg/outputArg as `${coder}:${absolutePath}`.
+ * Callers pass the real path resolveInputPath/resolveOutputPath validated, never the raw
+ * tool argument, so magick opens exactly the file confinement checked. The explicit coder
+ * pins the format, and the prefix keeps a leading "-" from being read as an option.
+ */
+function inputArg(validatedPath) {
+  return `${detectInputCoder(validatedPath)}:${resolve(validatedPath)}`;
+}
+
+function outputArg(validatedPath) {
+  return `${outputCoder(validatedPath)}:${resolve(validatedPath)}`;
 }
 
 function formatCommand(args) {
@@ -27,7 +131,7 @@ function formatCommand(args) {
 
 export class ImageProcessor {
   constructor() {
-    this.supportedFormats = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'ico'];
+    this.supportedFormats = Object.keys(EXTENSION_CODERS);
   }
 
   /**
@@ -90,7 +194,7 @@ export class ImageProcessor {
   /**
    * Confine an output path and refuse unsafe writes.
    *
-   * Rejects extensions outside supportedFormats, the input file itself (even with
+   * Rejects extensions outside EXTENSION_CODERS, the input file itself (even with
    * overwrite), and any existing file unless overwrite is true.
    *
    * @param {string} outputPath - Path supplied by the tool call or derived from it.
@@ -103,13 +207,7 @@ export class ImageProcessor {
   resolveOutputPath(outputPath, { inputReal, overwrite = false, label = 'outputPath' }) {
     const realPath = resolveAllowedPath(outputPath, label);
     for (const candidate of new Set([outputPath, realPath])) {
-      const ext = extname(candidate).slice(1).toLowerCase();
-      if (!this.supportedFormats.includes(ext)) {
-        throw new Error(
-          `${label} ${candidate} has unsupported extension "${ext}". ` +
-          `Use one of: ${this.supportedFormats.join(', ')}.`,
-        );
-      }
+      outputCoder(candidate, label);
     }
     if (isSameFile(inputReal, realPath)) {
       throw new Error(
@@ -161,7 +259,7 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputReal)];
+    const args = [inputArg(inputReal)];
     
     // Add resize if dimensions specified
     if (maxWidth || maxHeight) {
@@ -179,7 +277,7 @@ export class ImageProcessor {
     // Add optimization flags
     args.push('-strip', '-interlace', 'Plane');
     
-    args.push(magickPath(outputReal));
+    args.push(outputArg(outputReal));
 
     try {
       await runMagick(args);
@@ -216,7 +314,7 @@ export class ImageProcessor {
     const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
     this.ensureDirectoryExists(outputReal);
 
-    const args = [magickPath(inputReal)];
+    const args = [inputArg(inputReal)];
     
     if (cropToFit) {
       // Crop to exact dimensions
@@ -233,7 +331,7 @@ export class ImageProcessor {
       args.push('-resize', `${width}x${height}!`);
     }
     
-    args.push(magickPath(outputReal));
+    args.push(outputArg(outputReal));
 
     try {
       await runMagick(args);
@@ -274,12 +372,11 @@ export class ImageProcessor {
     }
 
     const results = [];
+    const input = inputArg(inputReal);
 
     for (const [index, size] of sizes.entries()) {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
-      const args = [
-        magickPath(inputReal), '-resize', `${size}x${size}`, magickPath(outputReals[index]),
-      ];
+      const args = [input, '-resize', `${size}x${size}`, outputArg(outputReals[index])];
 
       try {
         await runMagick(args);
@@ -323,14 +420,14 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputReal)];
+    const args = [inputArg(inputReal)];
     
     // Add quality for lossy formats
     if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
       args.push('-quality', String(quality));
     }
     
-    args.push(magickPath(outputReal));
+    args.push(outputArg(outputReal));
 
     try {
       await runMagick(args);
@@ -357,9 +454,10 @@ export class ImageProcessor {
   async getImageInfo({ imagePath }) {
     await this.checkImageMagick();
     const imageReal = this.resolveInputPath(imagePath, 'imagePath');
+    const args = ['identify', '-verbose', inputArg(imageReal)];
 
     try {
-      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imageReal)]);
+      const { stdout } = await runMagick(args);
       const fileSize = this.getFileSize(imageReal);
       
       // Parse basic info from identify output
