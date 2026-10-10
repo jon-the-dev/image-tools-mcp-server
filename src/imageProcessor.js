@@ -10,6 +10,10 @@ function runMagick(args) {
   return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER });
 }
 
+function magickPath(filePath) {
+  return resolve(filePath);
+}
+
 function formatCommand(args) {
   return ['magick', ...args].join(' ');
 }
@@ -95,7 +99,7 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputPath);
     
-    const args = [inputPath];
+    const args = [magickPath(inputPath)];
     
     // Add resize if dimensions specified
     if (maxWidth || maxHeight) {
@@ -113,7 +117,7 @@ export class ImageProcessor {
     // Add optimization flags
     args.push('-strip', '-interlace', 'Plane');
     
-    args.push(outputPath);
+    args.push(magickPath(outputPath));
 
     try {
       await runMagick(args);
@@ -146,7 +150,7 @@ export class ImageProcessor {
     this.validateInputFile(inputPath);
     this.ensureDirectoryExists(outputPath);
 
-    const args = [inputPath];
+    const args = [magickPath(inputPath)];
     
     if (cropToFit) {
       // Crop to exact dimensions
@@ -163,7 +167,7 @@ export class ImageProcessor {
       args.push('-resize', `${width}x${height}!`);
     }
     
-    args.push(outputPath);
+    args.push(magickPath(outputPath));
 
     try {
       await runMagick(args);
@@ -201,7 +205,9 @@ export class ImageProcessor {
     for (const size of sizes) {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
       
-      const args = [inputPath, '-resize', `${size}x${size}`, outputPath];
+      const args = [
+        magickPath(inputPath), '-resize', `${size}x${size}`, magickPath(outputPath),
+      ];
 
       try {
         await runMagick(args);
@@ -244,14 +250,14 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputPath);
     
-    const args = [inputPath];
+    const args = [magickPath(inputPath)];
     
     // Add quality for lossy formats
     if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
       args.push('-quality', String(quality));
     }
     
-    args.push(outputPath);
+    args.push(magickPath(outputPath));
 
     try {
       await runMagick(args);
@@ -280,7 +286,7 @@ export class ImageProcessor {
     this.validateInputFile(imagePath);
 
     try {
-      const { stdout } = await runMagick(['identify', '-verbose', imagePath]);
+      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imagePath)]);
       const fileSize = this.getFileSize(imagePath);
       
       // Parse basic info from identify output
@@ -340,7 +346,7 @@ export class ImageProcessor {
     const files = readdirSync(inputDir);
     const imageFiles = files.filter(file => {
       const ext = extname(file).toLowerCase().substring(1);
-      return extensions.includes(ext);
+      return extensions.includes(ext) && statSync(join(inputDir, file)).isFile();
     });
 
     if (imageFiles.length === 0) {
