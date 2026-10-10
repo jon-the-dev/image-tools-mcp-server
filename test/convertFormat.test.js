@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ImageProcessor } from '../src/imageProcessor.js';
@@ -27,6 +27,7 @@ async function writtenFormat(path) {
 describe('convertFormat', { skip: !magickAvailable() && 'ImageMagick not installed' }, () => {
   before(() => {
     root = mkdtempSync(join(tmpdir(), 'convert-format-'));
+    process.env.IMAGE_TOOLS_ALLOWED_DIRS = root;
     input = join(root, 'in.png');
     execFileSync('magick', ['-size', '32x32', 'xc:red', input]);
   });
@@ -56,6 +57,39 @@ describe('convertFormat', { skip: !magickAvailable() && 'ImageMagick not install
     assert.equal(await writtenFormat(expected), 'WEBP');
     assert.equal(result.format, 'webp');
     assert.equal(result.quality, 90);
+  });
+
+  test('confinement and overwrite checks run on the path with the appended extension', async () => {
+    const existing = join(root, 'taken.webp');
+    execFileSync('magick', ['-size', '8x8', 'xc:blue', existing]);
+    await assert.rejects(
+      processor.convertFormat({
+        inputPath: input, outputPath: join(root, 'taken'), format: 'webp',
+      }),
+      /taken\.webp already exists/,
+    );
+
+    const outside = mkdtempSync(join(tmpdir(), 'convert-format-outside-'));
+    try {
+      await assert.rejects(
+        processor.convertFormat({
+          inputPath: input, outputPath: join(outside, 'o'), format: 'png',
+        }),
+        /outside the allowed directories/,
+      );
+      assert.equal(existsSync(join(outside, 'o.png')), false);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test('extensionless output gets the coder for the requested format', async () => {
+    const result = await processor.convertFormat({
+      inputPath: input, outputPath: join(root, 'coded'), format: 'jpeg',
+    });
+    const expected = `JPEG:${join(realpathSync(root), 'coded.jpeg')}`;
+    assert.equal(result.command.split(' ').at(-1), expected);
+    assert.equal(result.format, 'jpeg');
   });
 
   test('treats jpeg and jpg as the same format', async () => {
