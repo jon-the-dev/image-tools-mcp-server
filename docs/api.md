@@ -123,12 +123,18 @@ Generate icons in multiple standard sizes.
 
 Convert an image from one format to another.
 
+`outputPath` must end in an extension that matches `format` (`.jpg`/`.jpeg` and `.tif`/`.tiff` are interchangeable). If `outputPath` has no extension, `.<format>` is appended. A mismatched extension, such as `out.png` with `format: "webp"`, is rejected with `outputPath extension .png does not match format webp`. A missing or non-string `format` is rejected with a clear error.
+
+The response reports the final `outputPath` and the `format` ImageMagick actually wrote
+(lowercase, as reported by `magick identify`, e.g. `jpeg` for a `jpg` request). `quality` is
+applied only to lossy formats (jpg, jpeg, webp) and is `"N/A"` otherwise.
+
 **Input Schema:**
 ```json
 {
   "inputPath": "string (required)",
   "outputPath": "string (required)",
-  "format": "string (required, one of: jpg, jpeg, png, webp, gif, bmp, tiff)",
+  "format": "string (required, one of: png, jpg, jpeg, gif, webp, tif, tiff, bmp, ico)",
   "quality": "number (optional, 1-100, default: 90, for lossy formats)",
   "overwrite": "boolean (optional, default: false)"
 }
@@ -276,5 +282,5 @@ magick identify -verbose "image.jpg"
 - **Large images**: Processing time increases with image size
 - **Batch operations**: Files are processed sequentially to manage memory
 - **Quality settings**: Higher quality = larger files, longer processing time
-- **Format conversion**: Some formats (WebP, AVIF) may take longer to encode
+- **Format conversion**: Some formats (WebP in particular) may take longer to encode
 - **Disk space**: Ensure adequate space for output files, especially for batch operations
