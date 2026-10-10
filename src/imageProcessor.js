@@ -1,9 +1,18 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { join, dirname, extname, basename, resolve } from 'path';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+const MAX_BUFFER = 10 * 1024 * 1024;
+
+function runMagick(args) {
+  return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER });
+}
+
+function formatCommand(args) {
+  return ['magick', ...args].join(' ');
+}
 
 export class ImageProcessor {
   constructor() {
@@ -15,7 +24,7 @@ export class ImageProcessor {
    */
   async checkImageMagick() {
     try {
-      await execAsync('magick -version');
+      await runMagick(['-version']);
       return true;
     } catch (error) {
       throw new Error('ImageMagick is not installed or not in PATH. Please install ImageMagick first.');
@@ -86,7 +95,7 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputPath);
     
-    let command = `magick "${inputPath}"`;
+    const args = [inputPath];
     
     // Add resize if dimensions specified
     if (maxWidth || maxHeight) {
@@ -95,19 +104,19 @@ export class ImageProcessor {
         : maxWidth 
           ? `${maxWidth}x>`
           : `x${maxHeight}>`;
-      command += ` -resize "${resize}"`;
+      args.push('-resize', resize);
     }
     
     // Add quality setting
-    command += ` -quality ${quality}`;
+    args.push('-quality', String(quality));
     
     // Add optimization flags
-    command += ` -strip -interlace Plane`;
+    args.push('-strip', '-interlace', 'Plane');
     
-    command += ` "${outputPath}"`;
+    args.push(outputPath);
 
     try {
-      const { stdout, stderr } = await execAsync(command);
+      await runMagick(args);
       const optimizedSize = this.getFileSize(outputPath);
       const compressionRatio = ((originalSize - optimizedSize) / originalSize * 100).toFixed(2);
 
@@ -122,7 +131,7 @@ export class ImageProcessor {
         quality,
         maxWidth,
         maxHeight,
-        command: command.replace(/"/g, ''),
+        command: formatCommand(args),
       };
     } catch (error) {
       throw new Error(`Failed to optimize image: ${error.message}`);
@@ -137,23 +146,27 @@ export class ImageProcessor {
     this.validateInputFile(inputPath);
     this.ensureDirectoryExists(outputPath);
 
-    let command = `magick "${inputPath}"`;
+    const args = [inputPath];
     
     if (cropToFit) {
       // Crop to exact dimensions
-      command += ` -resize "${width}x${height}^" -gravity center -crop "${width}x${height}+0+0"`;
+      args.push(
+        '-resize', `${width}x${height}^`,
+        '-gravity', 'center',
+        '-crop', `${width}x${height}+0+0`,
+      );
     } else if (maintainAspectRatio) {
       // Resize maintaining aspect ratio
-      command += ` -resize "${width}x${height}>"`;
+      args.push('-resize', `${width}x${height}>`);
     } else {
       // Force exact dimensions (may distort)
-      command += ` -resize "${width}x${height}!"`;
+      args.push('-resize', `${width}x${height}!`);
     }
     
-    command += ` "${outputPath}"`;
+    args.push(outputPath);
 
     try {
-      const { stdout, stderr } = await execAsync(command);
+      await runMagick(args);
       const thumbnailSize = this.getFileSize(outputPath);
 
       return {
@@ -164,7 +177,7 @@ export class ImageProcessor {
         maintainAspectRatio,
         cropToFit,
         fileSize: this.formatFileSize(thumbnailSize),
-        command: command.replace(/"/g, ''),
+        command: formatCommand(args),
       };
     } catch (error) {
       throw new Error(`Failed to create thumbnail: ${error.message}`);
@@ -188,10 +201,10 @@ export class ImageProcessor {
     for (const size of sizes) {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
       
-      let command = `magick "${inputPath}" -resize "${size}x${size}" "${outputPath}"`;
+      const args = [inputPath, '-resize', `${size}x${size}`, outputPath];
 
       try {
-        await execAsync(command);
+        await runMagick(args);
         const fileSize = this.getFileSize(outputPath);
         
         results.push({
@@ -231,17 +244,17 @@ export class ImageProcessor {
 
     const originalSize = this.getFileSize(inputPath);
     
-    let command = `magick "${inputPath}"`;
+    const args = [inputPath];
     
     // Add quality for lossy formats
     if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
-      command += ` -quality ${quality}`;
+      args.push('-quality', String(quality));
     }
     
-    command += ` "${outputPath}"`;
+    args.push(outputPath);
 
     try {
-      const { stdout, stderr } = await execAsync(command);
+      await runMagick(args);
       const convertedSize = this.getFileSize(outputPath);
 
       return {
@@ -252,7 +265,7 @@ export class ImageProcessor {
         quality: ['jpg', 'jpeg', 'webp'].includes(format.toLowerCase()) ? quality : 'N/A',
         originalSize: this.formatFileSize(originalSize),
         convertedSize: this.formatFileSize(convertedSize),
-        command: command.replace(/"/g, ''),
+        command: formatCommand(args),
       };
     } catch (error) {
       throw new Error(`Failed to convert format: ${error.message}`);
@@ -266,10 +279,8 @@ export class ImageProcessor {
     await this.checkImageMagick();
     this.validateInputFile(imagePath);
 
-    const command = `magick identify -verbose "${imagePath}"`;
-
     try {
-      const { stdout } = await execAsync(command);
+      const { stdout } = await runMagick(['identify', '-verbose', imagePath]);
       const fileSize = this.getFileSize(imagePath);
       
       // Parse basic info from identify output
