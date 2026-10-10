@@ -145,7 +145,7 @@ If you encounter permission errors:
    ```
 
 ### Node.js Version Issues
-This server requires Node.js 18.0.0 or higher:
+This server requires Node.js 20.0.0 or higher:
 
 ```bash
 node --version

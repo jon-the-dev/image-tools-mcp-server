@@ -82,7 +82,7 @@ magick -version
 ```
 
 ### Node.js
-Requires Node.js 18.0.0 or higher.
+Requires Node.js 20.0.0 or higher.
 
 ## Installation
 
