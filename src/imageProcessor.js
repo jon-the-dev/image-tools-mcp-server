@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { join, dirname, extname, basename, resolve } from 'path';
+import { isSameFile, resolveAllowedPath } from './pathGuard.js';
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 10 * 1024 * 1024;
@@ -10,8 +11,14 @@ function runMagick(args) {
   return execFileAsync('magick', args, { maxBuffer: MAX_BUFFER });
 }
 
-function magickPath(filePath) {
-  return resolve(filePath);
+/**
+ * Build the magick argument for a path that resolveInputPath/resolveOutputPath validated.
+ *
+ * Callers pass the validated real path, never the raw tool argument, so the file magick
+ * opens is the one confinement checked. Absolute paths cannot be parsed as options.
+ */
+function magickPath(validatedPath) {
+  return resolve(validatedPath);
 }
 
 function formatCommand(args) {
@@ -68,6 +75,58 @@ export class ImageProcessor {
   }
 
   /**
+   * Confine an input path to the allowed directories and require that it exists.
+   *
+   * @param {string} filePath - Path supplied by the tool call.
+   * @param {string} [label] - Argument name used in error messages.
+   * @returns {string} The resolved real path.
+   */
+  resolveInputPath(filePath, label = 'inputPath') {
+    const realPath = resolveAllowedPath(filePath, label);
+    this.validateInputFile(filePath);
+    return realPath;
+  }
+
+  /**
+   * Confine an output path and refuse unsafe writes.
+   *
+   * Rejects extensions outside supportedFormats, the input file itself (even with
+   * overwrite), and any existing file unless overwrite is true.
+   *
+   * @param {string} outputPath - Path supplied by the tool call or derived from it.
+   * @param {object} options - Write options.
+   * @param {string} options.inputReal - Resolved real path of the input file.
+   * @param {boolean} [options.overwrite] - Allow replacing an existing file.
+   * @param {string} [options.label] - Argument name used in error messages.
+   * @returns {string} The resolved real path.
+   */
+  resolveOutputPath(outputPath, { inputReal, overwrite = false, label = 'outputPath' }) {
+    const realPath = resolveAllowedPath(outputPath, label);
+    for (const candidate of new Set([outputPath, realPath])) {
+      const ext = extname(candidate).slice(1).toLowerCase();
+      if (!this.supportedFormats.includes(ext)) {
+        throw new Error(
+          `${label} ${candidate} has unsupported extension "${ext}". ` +
+          `Use one of: ${this.supportedFormats.join(', ')}.`,
+        );
+      }
+    }
+    if (isSameFile(inputReal, realPath)) {
+      throw new Error(
+        `${label} ${outputPath} is the input file. Choose a different output path; ` +
+        'overwrite: true does not allow replacing the input.',
+      );
+    }
+    if (!overwrite && existsSync(realPath)) {
+      throw new Error(
+        `${label} ${outputPath} already exists. Pass overwrite: true to replace it, ` +
+        'or choose a different path.',
+      );
+    }
+    return realPath;
+  }
+
+  /**
    * Get file size in bytes
    */
   getFileSize(filePath) {
@@ -92,14 +151,17 @@ export class ImageProcessor {
   /**
    * Optimize an image to reduce file size
    */
-  async optimizeImage({ inputPath, outputPath, quality = 85, maxWidth, maxHeight }) {
+  async optimizeImage({
+    inputPath, outputPath, quality = 85, maxWidth, maxHeight, overwrite = false,
+  }) {
     await this.checkImageMagick();
-    this.validateInputFile(inputPath);
-    this.ensureDirectoryExists(outputPath);
+    const inputReal = this.resolveInputPath(inputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
-    const originalSize = this.getFileSize(inputPath);
+    const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     // Add resize if dimensions specified
     if (maxWidth || maxHeight) {
@@ -117,11 +179,11 @@ export class ImageProcessor {
     // Add optimization flags
     args.push('-strip', '-interlace', 'Plane');
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const optimizedSize = this.getFileSize(outputPath);
+      const optimizedSize = this.getFileSize(outputReal);
       const compressionRatio = ((originalSize - optimizedSize) / originalSize * 100).toFixed(2);
 
       return {
@@ -145,12 +207,16 @@ export class ImageProcessor {
   /**
    * Create a thumbnail from an image
    */
-  async createThumbnail({ inputPath, outputPath, width, height, maintainAspectRatio = true, cropToFit = false }) {
+  async createThumbnail({
+    inputPath, outputPath, width, height, maintainAspectRatio = true, cropToFit = false,
+    overwrite = false,
+  }) {
     await this.checkImageMagick();
-    this.validateInputFile(inputPath);
-    this.ensureDirectoryExists(outputPath);
+    const inputReal = this.resolveInputPath(inputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     if (cropToFit) {
       // Crop to exact dimensions
@@ -167,11 +233,11 @@ export class ImageProcessor {
       args.push('-resize', `${width}x${height}!`);
     }
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const thumbnailSize = this.getFileSize(outputPath);
+      const thumbnailSize = this.getFileSize(outputReal);
 
       return {
         success: true,
@@ -191,27 +257,33 @@ export class ImageProcessor {
   /**
    * Create icons in multiple sizes
    */
-  async createIcon({ inputPath, outputDir, sizes = [16, 32, 64, 128, 256], format = 'png' }) {
+  async createIcon({
+    inputPath, outputDir, sizes = [16, 32, 64, 128, 256], format = 'png', overwrite = false,
+  }) {
     await this.checkImageMagick();
-    this.validateInputFile(inputPath);
-    
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
+    const inputReal = this.resolveInputPath(inputPath);
+    const outputDirReal = resolveAllowedPath(outputDir, 'outputDir');
+    const baseName = basename(inputPath, extname(inputPath));
+    const outputReals = sizes.map((size) => {
+      const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
+      return this.resolveOutputPath(outputPath, { inputReal, overwrite, label: 'icon outputPath' });
+    });
+
+    if (!existsSync(outputDirReal)) {
+      mkdirSync(outputDirReal, { recursive: true });
     }
 
     const results = [];
-    const baseName = basename(inputPath, extname(inputPath));
 
-    for (const size of sizes) {
+    for (const [index, size] of sizes.entries()) {
       const outputPath = join(outputDir, `${baseName}-${size}x${size}.${format}`);
-      
       const args = [
-        magickPath(inputPath), '-resize', `${size}x${size}`, magickPath(outputPath),
+        magickPath(inputReal), '-resize', `${size}x${size}`, magickPath(outputReals[index]),
       ];
 
       try {
         await runMagick(args);
-        const fileSize = this.getFileSize(outputPath);
+        const fileSize = this.getFileSize(outputReals[index]);
         
         results.push({
           size: `${size}x${size}`,
@@ -239,29 +311,30 @@ export class ImageProcessor {
   /**
    * Convert image format
    */
-  async convertFormat({ inputPath, outputPath, format, quality = 90 }) {
+  async convertFormat({ inputPath, outputPath, format, quality = 90, overwrite = false }) {
     await this.checkImageMagick();
-    this.validateInputFile(inputPath);
-    this.ensureDirectoryExists(outputPath);
+    const inputReal = this.resolveInputPath(inputPath);
+    const outputReal = this.resolveOutputPath(outputPath, { inputReal, overwrite });
+    this.ensureDirectoryExists(outputReal);
 
     if (!this.supportedFormats.includes(format.toLowerCase())) {
       throw new Error(`Unsupported format: ${format}. Supported formats: ${this.supportedFormats.join(', ')}`);
     }
 
-    const originalSize = this.getFileSize(inputPath);
+    const originalSize = this.getFileSize(inputReal);
     
-    const args = [magickPath(inputPath)];
+    const args = [magickPath(inputReal)];
     
     // Add quality for lossy formats
     if (['jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) {
       args.push('-quality', String(quality));
     }
     
-    args.push(magickPath(outputPath));
+    args.push(magickPath(outputReal));
 
     try {
       await runMagick(args);
-      const convertedSize = this.getFileSize(outputPath);
+      const convertedSize = this.getFileSize(outputReal);
 
       return {
         success: true,
@@ -283,11 +356,11 @@ export class ImageProcessor {
    */
   async getImageInfo({ imagePath }) {
     await this.checkImageMagick();
-    this.validateInputFile(imagePath);
+    const imageReal = this.resolveInputPath(imagePath, 'imagePath');
 
     try {
-      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imagePath)]);
-      const fileSize = this.getFileSize(imagePath);
+      const { stdout } = await runMagick(['identify', '-verbose', magickPath(imageReal)]);
+      const fileSize = this.getFileSize(imageReal);
       
       // Parse basic info from identify output
       const lines = stdout.split('\n');
@@ -332,11 +405,23 @@ export class ImageProcessor {
   /**
    * Batch optimize images in a directory
    */
-  async batchOptimize({ inputDir, outputDir, quality = 85, maxWidth, maxHeight, extensions = ['jpg', 'jpeg', 'png', 'webp'] }) {
+  async batchOptimize({
+    inputDir, outputDir, quality = 85, maxWidth, maxHeight,
+    extensions = ['jpg', 'jpeg', 'png', 'webp'], overwrite = false,
+  }) {
     await this.checkImageMagick();
-    
+    const inputDirReal = resolveAllowedPath(inputDir, 'inputDir');
+    const outputDirReal = resolveAllowedPath(outputDir, 'outputDir');
+
     if (!existsSync(inputDir)) {
       throw new Error(`Input directory does not exist: ${inputDir}`);
+    }
+
+    if (isSameFile(inputDirReal, outputDirReal)) {
+      throw new Error(
+        `outputDir ${outputDir} is the same directory as inputDir. Choose a different ` +
+        'outputDir; overwrite: true does not allow replacing the originals.',
+      );
     }
 
     if (!existsSync(outputDir)) {
@@ -374,6 +459,7 @@ export class ImageProcessor {
           quality,
           maxWidth,
           maxHeight,
+          overwrite,
         });
         
         results.push({

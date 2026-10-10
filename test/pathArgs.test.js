@@ -46,6 +46,7 @@ async function identify(path) {
 
 before(() => {
   root = mkdtempSync(join(tmpdir(), 'image-tools-path-args-'));
+  process.env.IMAGE_TOOLS_ALLOWED_DIRS = root;
 });
 
 after(() => {

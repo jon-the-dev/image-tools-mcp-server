@@ -61,6 +61,11 @@ class ImageToolsServer {
                   type: 'number',
                   description: 'Maximum height in pixels (optional)',
                 },
+                overwrite: {
+                  type: 'boolean',
+                  description: 'Replace an existing output file (default: false); never the input',
+                  default: false,
+                },
               },
               required: ['inputPath', 'outputPath'],
             },
@@ -111,6 +116,11 @@ class ImageToolsServer {
                   description: 'Whether to crop to fit exact dimensions (default: false)',
                   default: false,
                 },
+                overwrite: {
+                  type: 'boolean',
+                  description: 'Replace an existing output file (default: false); never the input',
+                  default: false,
+                },
               },
               required: ['inputPath', 'outputPath', 'width', 'height'],
             },
@@ -143,6 +153,11 @@ class ImageToolsServer {
                   enum: ['png', 'ico'],
                   default: 'png',
                 },
+                overwrite: {
+                  type: 'boolean',
+                  description: 'Replace existing outputs (default: false); never replaces inputs',
+                  default: false,
+                },
               },
               required: ['inputPath', 'outputDir'],
             },
@@ -172,6 +187,11 @@ class ImageToolsServer {
                   minimum: 1,
                   maximum: 100,
                   default: 90,
+                },
+                overwrite: {
+                  type: 'boolean',
+                  description: 'Replace an existing output file (default: false); never the input',
+                  default: false,
                 },
               },
               required: ['inputPath', 'outputPath', 'format'],
@@ -227,6 +247,11 @@ class ImageToolsServer {
                   },
                   description: 'File extensions to process (default: [jpg, jpeg, png, webp])',
                   default: ['jpg', 'jpeg', 'png', 'webp'],
+                },
+                overwrite: {
+                  type: 'boolean',
+                  description: 'Replace existing outputs (default: false); never replaces inputs',
+                  default: false,
                 },
               },
               required: ['inputDir', 'outputDir'],
@@ -286,7 +311,9 @@ class ImageToolsServer {
     const directory = args.directory || '.';
     const { readdirSync, statSync } = await import('fs');
     const { join } = await import('path');
-    
+    const { resolveAllowedPath } = await import('./pathGuard.js');
+    resolveAllowedPath(directory, 'directory');
+
     try {
       const files = readdirSync(directory);
       const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|tiff|webp|ico)$/i;

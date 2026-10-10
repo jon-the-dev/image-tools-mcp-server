@@ -49,11 +49,16 @@
        "image-tools": {
          "command": "npx",
          "args": ["image-tools-mcp-server"],
-         "env": {}
+         "env": {
+           "IMAGE_TOOLS_ALLOWED_DIRS": "/Users/you/test-images:/Users/you/Pictures"
+         }
        }
      }
    }
    ```
+
+   Set `IMAGE_TOOLS_ALLOWED_DIRS` in every variant below as well. See
+   [Allowed Directories](#allowed-directories).
 
    **If installed globally:**
    ```json
@@ -115,6 +120,16 @@ If you get an error about ImageMagick not being found:
    echo $PATH
    ```
 
+### "outside the allowed directories"
+The path resolved (after following symlinks) to somewhere not listed in
+`IMAGE_TOOLS_ALLOWED_DIRS`, or, if the variable is unset, outside the server's working directory.
+Add the directory to `IMAGE_TOOLS_ALLOWED_DIRS` in your MCP client config and restart the client.
+
+### "already exists. Pass overwrite: true"
+Write tools no longer replace existing files by default. Ask for `overwrite: true` or choose a
+new output path. Writing over the input file, or batch optimizing into the input directory, is
+always refused.
+
 ### Permission Issues
 If you encounter permission errors:
 
@@ -151,11 +166,29 @@ mkdir -p ~/test-images/input ~/test-images/output
 # Download a test image (or copy one you have)
 curl -o ~/test-images/input/test.jpg "https://via.placeholder.com/1920x1080/0000FF/FFFFFF?text=Test+Image"
 
+# Make sure IMAGE_TOOLS_ALLOWED_DIRS in your MCP config includes ~/test-images (as an absolute path)
+
 # Test through Q CLI
 q chat "Optimize the image at ~/test-images/input/test.jpg and save it to ~/test-images/output/test-optimized.jpg"
 ```
 
 ## Configuration Options
+
+### Allowed Directories
+`IMAGE_TOOLS_ALLOWED_DIRS` is a list of directories, separated by `:` (`;` on Windows). The server
+only reads, writes, lists, and creates directories inside them. Each entry must exist when a tool
+runs. Relative entries resolve against the server's working directory, so use absolute paths.
+
+If the variable is unset, only the server's working directory is allowed. Many MCP clients launch
+servers with a working directory of `/` or of the client's own install folder, which makes that
+default either useless or far too broad. Set the variable explicitly.
+
+### Overwriting Files
+`optimize_image`, `create_thumbnail`, `create_icon`, `convert_format` and `batch_optimize` accept
+`overwrite` (default `false`). Without it, an existing output file is left alone and the call
+fails. Even with it, the output can't be the input file, and `batch_optimize` can't write into
+its own `inputDir`. Output files must use a supported image extension (jpg, jpeg, png, webp, gif,
+bmp, tiff, ico).
 
 ### Quality Settings
 - **High Quality (90-100)**: Minimal compression, larger files
