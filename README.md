@@ -12,14 +12,17 @@ npm install -g image-tools-mcp-server
 npx image-tools-mcp-server
 ```
 
-Then add to your Q CLI MCP configuration:
+Then add to your Q CLI MCP configuration, setting `IMAGE_TOOLS_ALLOWED_DIRS` to the
+directories the server may read and write (see [Environment Variables](#environment-variables)):
 ```json
 {
   "mcpServers": {
     "image-tools": {
       "command": "npx",
       "args": ["image-tools-mcp-server"],
-      "env": {}
+      "env": {
+        "IMAGE_TOOLS_ALLOWED_DIRS": "/Users/you/Pictures:/Users/you/projects/site/assets"
+      }
     }
   }
 }
@@ -158,7 +161,28 @@ To use this MCP server with Amazon Q CLI, add it to your MCP configuration:
 
 ### Environment Variables
 
-No environment variables are required for basic operation.
+`IMAGE_TOOLS_ALLOWED_DIRS` lists the directories the server may read from, write to, create
+directories in, and list. Separate entries with `:` (`;` on Windows). Every path a tool receives
+(`inputPath`, `outputPath`, `imagePath`, `inputDir`, `outputDir`, and the `list_images`
+`directory`) must resolve inside one of them, after following symlinks. Anything else is rejected
+with an error naming the path and the allowed directories.
+
+If the variable is unset, the server allows only its working directory. Many MCP clients start
+servers with the working directory set to `/` or to their own install location, so set
+`IMAGE_TOOLS_ALLOWED_DIRS` explicitly in the client config:
+
+```json
+"env": {
+  "IMAGE_TOOLS_ALLOWED_DIRS": "/Users/you/Pictures:/Users/you/projects/site/assets"
+}
+```
+
+### Overwriting files
+
+Tools that write files refuse to replace an existing file unless the call passes
+`"overwrite": true`. The output can never be the input file itself, and `batch_optimize` refuses
+an `outputDir` that is the same directory as `inputDir`, even with `overwrite`. Output file
+extensions must be one of the supported image formats listed below.
 
 ## Available Tools
 
@@ -172,6 +196,7 @@ Optimize an image to reduce file size while maintaining quality.
 - `quality` (optional): Quality level (1-100, default: 85)
 - `maxWidth` (optional): Maximum width in pixels
 - `maxHeight` (optional): Maximum height in pixels
+- `overwrite` (optional): Replace the output file if it already exists (default: false). Never replaces the input.
 
 **Example:**
 ```javascript
@@ -195,6 +220,7 @@ Create a thumbnail from an image with specified dimensions.
 - `height` (required): Thumbnail height in pixels
 - `maintainAspectRatio` (optional): Whether to maintain aspect ratio (default: true)
 - `cropToFit` (optional): Whether to crop to fit exact dimensions (default: false)
+- `overwrite` (optional): Replace the output file if it already exists (default: false). Never replaces the input.
 
 **Example:**
 ```javascript
@@ -217,6 +243,7 @@ Create icons in standard sizes from an image.
 - `outputDir` (required): Directory to save icon files
 - `sizes` (optional): Array of icon sizes to generate (default: [16, 32, 64, 128, 256])
 - `format` (optional): Output format (png, ico, default: png)
+- `overwrite` (optional): Replace existing icon files (default: false)
 
 **Example:**
 ```javascript
@@ -237,6 +264,7 @@ Convert an image from one format to another.
 - `outputPath` (required): Path for the converted output image
 - `format` (required): Target format (jpg, png, webp, gif, bmp, tiff)
 - `quality` (optional): Quality level for lossy formats (1-100, default: 90)
+- `overwrite` (optional): Replace the output file if it already exists (default: false). Never replaces the input.
 
 **Example:**
 ```javascript
@@ -273,6 +301,7 @@ Optimize multiple images in a directory.
 - `maxWidth` (optional): Maximum width in pixels
 - `maxHeight` (optional): Maximum height in pixels
 - `extensions` (optional): File extensions to process (default: [jpg, jpeg, png, webp])
+- `overwrite` (optional): Replace files that already exist in `outputDir` (default: false). `outputDir` must differ from `inputDir`.
 
 **Example:**
 ```javascript

@@ -45,6 +45,7 @@ async function inDir(dir, fn) {
 
 before(() => {
   root = mkdtempSync(join(tmpdir(), 'image-tools-test-'));
+  process.env.IMAGE_TOOLS_ALLOWED_DIRS = root;
 });
 
 after(() => {

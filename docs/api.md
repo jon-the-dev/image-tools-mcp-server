@@ -1,5 +1,21 @@
 # API Documentation
 
+## Path Rules
+
+Every path argument (`inputPath`, `outputPath`, `imagePath`, `inputDir`, `outputDir`, and the
+`list_images` `directory`) must resolve, after following symlinks, inside a directory listed in
+`IMAGE_TOOLS_ALLOWED_DIRS` (separated by `:`, or `;` on Windows). When the variable is unset, only
+the server's working directory is allowed. Set it explicitly in your MCP client config, since
+many clients start servers with a working directory of `/`.
+
+Write rules for `optimize_image`, `create_thumbnail`, `create_icon`, `convert_format` and
+`batch_optimize`:
+
+- `overwrite` defaults to `false`. An existing output file makes the call fail unless it is `true`.
+- The output may never be the input file, and `batch_optimize` rejects an `outputDir` that is the
+  same directory as `inputDir`. `overwrite` does not lift either rule.
+- Output files must end in a supported image extension: jpg, jpeg, png, webp, gif, bmp, tiff, ico.
+
 ## Tool Reference
 
 ### optimize_image
@@ -13,7 +29,8 @@ Optimize an image to reduce file size while maintaining visual quality.
   "outputPath": "string (required)", 
   "quality": "number (optional, 1-100, default: 85)",
   "maxWidth": "number (optional)",
-  "maxHeight": "number (optional)"
+  "maxHeight": "number (optional)",
+  "overwrite": "boolean (optional, default: false)"
 }
 ```
 
@@ -46,7 +63,8 @@ Create a thumbnail with specified dimensions.
   "width": "number (required)",
   "height": "number (required)",
   "maintainAspectRatio": "boolean (optional, default: true)",
-  "cropToFit": "boolean (optional, default: false)"
+  "cropToFit": "boolean (optional, default: false)",
+  "overwrite": "boolean (optional, default: false)"
 }
 ```
 
@@ -74,7 +92,8 @@ Generate icons in multiple standard sizes.
   "inputPath": "string (required)",
   "outputDir": "string (required)",
   "sizes": "array of numbers (optional, default: [16, 32, 64, 128, 256])",
-  "format": "string (optional, 'png' or 'ico', default: 'png')"
+  "format": "string (optional, 'png' or 'ico', default: 'png')",
+  "overwrite": "boolean (optional, default: false)"
 }
 ```
 
@@ -110,7 +129,8 @@ Convert an image from one format to another.
   "inputPath": "string (required)",
   "outputPath": "string (required)",
   "format": "string (required, one of: jpg, jpeg, png, webp, gif, bmp, tiff)",
-  "quality": "number (optional, 1-100, default: 90, for lossy formats)"
+  "quality": "number (optional, 1-100, default: 90, for lossy formats)",
+  "overwrite": "boolean (optional, default: false)"
 }
 ```
 
@@ -172,7 +192,8 @@ Optimize multiple images in a directory.
   "quality": "number (optional, 1-100, default: 85)",
   "maxWidth": "number (optional)",
   "maxHeight": "number (optional)",
-  "extensions": "array of strings (optional, default: ['jpg', 'jpeg', 'png', 'webp'])"
+  "extensions": "array of strings (optional, default: ['jpg', 'jpeg', 'png', 'webp'])",
+  "overwrite": "boolean (optional, default: false)"
 }
 ```
 
@@ -214,6 +235,8 @@ All tools return consistent error responses:
 
 Common error scenarios:
 - **File not found**: Input file doesn't exist
+- **Path not allowed**: A path resolves outside `IMAGE_TOOLS_ALLOWED_DIRS`
+- **Output exists**: The output file exists and `overwrite` is not `true`, or the output is the input
 - **Permission denied**: Cannot read input or write output
 - **Invalid format**: Unsupported image format
 - **ImageMagick not found**: ImageMagick not installed or not in PATH

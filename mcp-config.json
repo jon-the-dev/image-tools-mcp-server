@@ -3,7 +3,9 @@
     "image-tools": {
       "command": "npx",
       "args": ["image-tools-mcp-server"],
-      "env": {}
+      "env": {
+        "IMAGE_TOOLS_ALLOWED_DIRS": "/Users/you/Pictures:/Users/you/projects/site/assets"
+      }
     }
   }
 }
